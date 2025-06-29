@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<title>HackTerm - Sahte Terminal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap');
+  body {
+    margin: 0; background: #000; color: #0f0; font-family: 'Source Code Pro', monospace;
+    display: flex; justify-content: center; align-items: center; height: 100vh;
+  }
+  #terminal {
+    background: #000; width: 90vw; max-width: 700px; height: 500px;
+    padding: 20px; box-sizing: border-box; border-radius: 8px;
+    box-shadow: 0 0 15px #0f0;
+    overflow-y: auto;
+  }
+  #output {
+    white-space: pre-wrap; margin-bottom: 10px;
+  }
+  #input-line {
+    display: flex;
+  }
+  #prompt {
+    flex-shrink: 0;
+    user-select: none;
+  }
+  #cmdline {
+    flex-grow: 1; background: transparent; border: none; color: #0f0;
+    font-family: inherit; font-size: 1rem; outline: none;
+  }
+  ::selection {
+    background: #0f0; color: #000;
+  }
+  /* Scrollbar */
+  #terminal::-webkit-scrollbar {
+    width: 8px;
+  }
+  #terminal::-webkit-scrollbar-track {
+    background: #111;
+  }
+  #terminal::-webkit-scrollbar-thumb {
+    background: #0f0;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div id="terminal" tabindex="0" aria-label="Hack the Terminal">
+  <div id="output"></div>
+  <div id="input-line">
+    <span id="prompt">guest@hackterm:~$&nbsp;</span>
+    <input type="text" id="cmdline" autofocus autocomplete="off" spellcheck="false" />
+  </div>
+</div>
+
+<script>
+(() => {
+  const output = document.getElementById('output');
+  const cmdline = document.getElementById('cmdline');
+  const terminal = document.getElementById('terminal');
+  const prompt = 'guest@hackterm:~$ ';
+
+  const username = 'arhat_basut';
+
+  const commands = {
+    help: () => {
+      return `Desteklenen komutlar:\n` +
+             `whoami    - Kullanıcı adını gösterir\n` +
+             `ip        - Rastgele IP adresi üretir\n` +
+             `location  - Sahte konum bilgisi gösterir\n` +
+             `date      - Güncel tarihi gösterir\n` +
+             `clear     - Ekranı temizler\n` +
+             `help      - Komut listesini gösterir`;
+    },
+    whoami: () => username,
+    ip: () => {
+      // Rastgele IP üret
+      return Array(4).fill(0).map(() => Math.floor(Math.random() * 256)).join('.');
+    },
+    location: () => {
+      const cities = ['İstanbul, Türkiye', 'Ankara, Türkiye', 'New York, USA', 'Tokyo, Japonya', 'Berlin, Almanya', 'Paris, Fransa', 'Londra, İngiltere'];
+      return cities[Math.floor(Math.random() * cities.length)];
+    },
+    date: () => new Date().toLocaleString('tr-TR'),
+    clear: () => {
+      output.textContent = '';
+      return '';
+    }
+  };
+
+  function print(text) {
+    output.textContent += text + '\n';
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  cmdline.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){
+      const input = cmdline.value.trim();
+      print(prompt + input);
+      if(input === '') {
+        cmdline.value = '';
+        return;
+      }
+      const args = input.split(' ');
+      const cmd = args[0].toLowerCase();
+
+      if(commands[cmd]) {
+        const result = commands[cmd](...args.slice(1));
+        if(result) print(result);
+      } else {
+        print(`Komut bulunamadı: ${cmd}. 'help' yazarak komutları görebilirsin.`);
+      }
+
+      cmdline.value = '';
+    }
+  });
+
+  // Terminale odaklama, tıklayınca input aktif olsun
+  terminal.addEventListener('click', () => cmdline.focus());
+
+  // Sayfa yüklendiğinde inputa otomatik odak ve karşılama mesajı
+  window.onload = () => {
+    print("HackTerm terminaline hoş geldin!");
+    print("Yardım için 'help' yazabilirsin.\n");
+    cmdline.focus();
+  };
+
+})();
+</script>
+
+</body>
+</html>
