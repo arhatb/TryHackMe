@@ -1,134 +1,764 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8" />
-<title>HackTerm - Sahte Terminal</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap');
-  body {
-    margin: 0; background: #000; color: #0f0; font-family: 'Source Code Pro', monospace;
-    display: flex; justify-content: center; align-items: center; height: 100vh;
-  }
-  #terminal {
-    background: #000; width: 90vw; max-width: 700px; height: 500px;
-    padding: 20px; box-sizing: border-box; border-radius: 8px;
-    box-shadow: 0 0 15px #0f0;
-    overflow-y: auto;
-  }
-  #output {
-    white-space: pre-wrap; margin-bottom: 10px;
-  }
-  #input-line {
-    display: flex;
-  }
-  #prompt {
-    flex-shrink: 0;
-    user-select: none;
-  }
-  #cmdline {
-    flex-grow: 1; background: transparent; border: none; color: #0f0;
-    font-family: inherit; font-size: 1rem; outline: none;
-  }
-  ::selection {
-    background: #0f0; color: #000;
-  }
-  /* Scrollbar */
-  #terminal::-webkit-scrollbar {
-    width: 8px;
-  }
-  #terminal::-webkit-scrollbar-track {
-    background: #111;
-  }
-  #terminal::-webkit-scrollbar-thumb {
-    background: #0f0;
-    border-radius: 4px;
-  }
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ARHAT — Terminal</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text x='0' y='14'>⚡</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #080b10;
+      --bg2:      #0d1117;
+      --bg3:      #161b22;
+      --border:   rgba(48,54,61,0.8);
+      --green:    #39d353;
+      --green2:   #26a641;
+      --cyan:     #58a6ff;
+      --purple:   #bc8cff;
+      --yellow:   #e3b341;
+      --red:      #f85149;
+      --orange:   #f0883e;
+      --text:     #e6edf3;
+      --text2:    #8b949e;
+      --text3:    #484f58;
+      --mono:     'JetBrains Mono', monospace;
+      --cursor-color: #39d353;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden; }
+
+    body {
+      background: var(--bg);
+      font-family: var(--mono);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ── TITLE BAR ── */
+    .titlebar {
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .tb-dots { display:flex; gap:7px; }
+    .tb-dot {
+      width:12px; height:12px; border-radius:50%;
+      cursor:pointer; transition: opacity 0.2s;
+    }
+    .tb-dot:hover { opacity:0.75; }
+    .tb-dot.red    { background:#ff5f57; }
+    .tb-dot.yellow { background:#febc2e; }
+    .tb-dot.green  { background:#28c840; }
+
+    .tb-title {
+      flex:1; text-align:center;
+      font-size:12px; color:var(--text2);
+      letter-spacing:0.05em;
+    }
+
+    .tb-lang {
+      font-size:11px; color:var(--cyan);
+      cursor:pointer; padding:3px 8px;
+      border:1px solid rgba(88,166,255,0.25);
+      border-radius:4px;
+      transition: all 0.2s;
+      background: rgba(88,166,255,0.05);
+    }
+    .tb-lang:hover { background:rgba(88,166,255,0.15); color:#fff; }
+
+    /* ── TERMINAL BODY ── */
+    #terminal {
+      flex:1;
+      overflow-y: auto;
+      padding: 20px 24px 8px;
+      scroll-behavior: smooth;
+    }
+
+    #terminal::-webkit-scrollbar { width:6px; }
+    #terminal::-webkit-scrollbar-track { background:transparent; }
+    #terminal::-webkit-scrollbar-thumb { background:var(--bg3); border-radius:3px; }
+
+    .output-line {
+      line-height: 1.6;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .output-line.cmd   { color: var(--green); }
+    .output-line.info  { color: var(--text2); }
+    .output-line.dim   { color: var(--text3); }
+    .output-line.error { color: var(--red); }
+    .output-line.success { color: var(--green); }
+    .output-line.accent  { color: var(--cyan); }
+    .output-line.warn    { color: var(--yellow); }
+    .output-line.purple  { color: var(--purple); }
+    .output-line.orange  { color: var(--orange); }
+    .output-line.gap { margin-bottom:6px; }
+
+    .prompt-line {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .prompt-user  { color: var(--green); }
+    .prompt-at    { color: var(--text2); }
+    .prompt-host  { color: var(--cyan); }
+    .prompt-sep   { color: var(--text2); }
+    .prompt-path  { color: var(--purple); }
+    .prompt-arrow { color: var(--text2); margin-right:8px; }
+
+    #input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      flex:1;
+      caret-color: var(--cursor-color);
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      padding: 4px 24px 16px;
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
+    }
+
+    /* ── HANGMAN ── */
+    .hangman-art {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--yellow);
+      margin: 4px 0;
+    }
+
+    .hm-word {
+      font-size: 16px;
+      letter-spacing: 8px;
+      color: var(--text);
+      margin: 8px 0 4px;
+    }
+
+    .hm-wrong {
+      color: var(--red);
+      font-size: 12px;
+    }
+
+    /* ── BOOT ANIMATION ── */
+    @keyframes blink {
+      0%,100% { opacity:1; }
+      50%      { opacity:0; }
+    }
+    .blink { animation: blink 1s infinite; }
+
+    /* ── MOBILE ── */
+    @media (max-width:600px) {
+      #terminal { padding:12px 14px 6px; }
+      .input-row { padding:4px 14px 12px; }
+      .output-line { font-size:12px; }
+      #input { font-size:12px; }
+      .prompt-line { font-size:12px; }
+      .tb-title { font-size:11px; }
+    }
+  </style>
 </head>
 <body>
 
-<div id="terminal" tabindex="0" aria-label="Hack the Terminal">
-  <div id="output"></div>
-  <div id="input-line">
-    <span id="prompt">guest@hackterm:~$&nbsp;</span>
-    <input type="text" id="cmdline" autofocus autocomplete="off" spellcheck="false" />
+<div class="titlebar">
+  <div class="tb-dots">
+    <div class="tb-dot red"></div>
+    <div class="tb-dot yellow"></div>
+    <div class="tb-dot green"></div>
   </div>
+  <div class="tb-title" id="tbTitle">arhat@portfolio — bash</div>
+  <div class="tb-lang" id="langToggle" onclick="toggleLang()">EN</div>
+</div>
+
+<div id="terminal"></div>
+
+<div class="input-row">
+  <div class="prompt-line">
+    <span class="prompt-user">arhat</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-sep">:</span><span class="prompt-path">~</span><span class="prompt-arrow"> $ </span>
+  </div>
+  <input id="input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" autofocus/>
 </div>
 
 <script>
-(() => {
-  const output = document.getElementById('output');
-  const cmdline = document.getElementById('cmdline');
-  const terminal = document.getElementById('terminal');
-  const prompt = 'guest@hackterm:~$ ';
+// ─────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────
+let lang = 'tr';
+let history = [];
+let histIdx = -1;
+let hangman = null; // active game state
 
-  const username = 'arhat_basut';
-
-  const commands = {
-    help: () => {
-      return `Desteklenen komutlar:\n` +
-             `whoami    - Kullanıcı adını gösterir\n` +
-             `ip        - Rastgele IP adresi üretir\n` +
-             `location  - Sahte konum bilgisi gösterir\n` +
-             `date      - Güncel tarihi gösterir\n` +
-             `clear     - Ekranı temizler\n` +
-             `help      - Komut listesini gösterir`;
-    },
-    whoami: () => username,
-    ip: () => {
-      // Rastgele IP üret
-      return Array(4).fill(0).map(() => Math.floor(Math.random() * 256)).join('.');
-    },
-    location: () => {
-      const cities = ['İstanbul, Türkiye', 'Ankara, Türkiye', 'New York, USA', 'Tokyo, Japonya', 'Berlin, Almanya', 'Paris, Fransa', 'Londra, İngiltere'];
-      return cities[Math.floor(Math.random() * cities.length)];
-    },
-    date: () => new Date().toLocaleString('tr-TR'),
-    clear: () => {
-      output.textContent = '';
-      return '';
-    }
-  };
-
-  function print(text) {
-    output.textContent += text + '\n';
-    terminal.scrollTop = terminal.scrollHeight;
+// ─────────────────────────────────────────
+//  TRANSLATIONS
+// ─────────────────────────────────────────
+const T = {
+  tr: {
+    welcome: [
+      {t:'accent', s:'╔══════════════════════════════════════════════╗'},
+      {t:'accent', s:'║         ARHAT BAŞUT — Terminal Portfolio     ║'},
+      {t:'accent', s:'╚══════════════════════════════════════════════╝'},
+      {t:'dim',    s:''},
+      {t:'info',   s:"  Merhaba! Ben Arhat — Aspiring Developer."},
+      {t:'info',   s:"  Harran Üniversitesi, Bilgisayar Mühendisliği 1. sınıf."},
+      {t:'dim',    s:''},
+      {t:'success',s:"  Komutları görmek için 'help' yaz ve Enter'a bas."},
+      {t:'dim',    s:''},
+    ],
+    help: [
+      {t:'accent', s:'┌─ Kullanılabilir Komutlar ────────────────────┐'},
+      {t:'info',   s:'│'},
+      {t:'green2', s:'│  about       ', rest:'Hakkımda bilgi'},
+      {t:'green2', s:'│  skills      ', rest:'Teknik beceriler'},
+      {t:'green2', s:'│  projects    ', rest:'Projelerim'},
+      {t:'green2', s:'│  contact     ', rest:'İletişim bilgileri'},
+      {t:'green2', s:'│  experience  ', rest:'Deneyim & kulüpler'},
+      {t:'info',   s:'│'},
+      {t:'purple', s:'│  hangman     ', rest:'Mini kelime oyunu 🎮'},
+      {t:'purple', s:'│  matrix      ', rest:'Matrix efekti ✨'},
+      {t:'purple', s:'│  secret      ', rest:'???'},
+      {t:'info',   s:'│'},
+      {t:'warn',   s:'│  clear       ', rest:'Ekranı temizle'},
+      {t:'warn',   s:'│  lang        ', rest:'Dili değiştir (TR/EN)'},
+      {t:'info',   s:'│'},
+      {t:'accent', s:'└─────────────────────────────────────────────┘'},
+    ],
+    about: [
+      {t:'cyan',   s:'> Hakkımda'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  Ad       : Arhat Başut'},
+      {t:'info',   s:'  Konum    : Diyarbakır, Türkiye 🇹🇷'},
+      {t:'info',   s:'  Okul     : Harran Üniversitesi'},
+      {t:'info',   s:'  Bölüm    : Bilgisayar Mühendisliği (1. Sınıf)'},
+      {t:'info',   s:'  Durum    : Aktif öğreniyor ●'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  Yazılım geliştirme ve siber güvenliğe ilgi duyuyorum.'},
+      {t:'info',   s:'  Java ve web geliştirme öğreniyorum. IEEE & Genç STEM'},
+      {t:'info',   s:'  kulüplerinde aktif görev alıyorum.'},
+    ],
+    skills: [
+      {t:'cyan',   s:'> Teknik Beceriler'},
+      {t:'dim',    s:''},
+      {t:'green2', s:'  Diller       ', rest:'Java · JavaScript · HTML · CSS · Python (temel)'},
+      {t:'green2', s:'  Web          ', rest:'Frontend · Temel Backend · REST API'},
+      {t:'green2', s:'  Araçlar      ', rest:'Git · GitHub · VS Code · Linux'},
+      {t:'yellow', s:'  Öğreniyor    ', rest:'Siber Güvenlik · Node.js · Algoritmalar'},
+      {t:'text3',  s:'  İlgi         ', rest:'CTF · Network Security · Open Source'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  ● Güçlü   ◐ Gelişiyor   ○ Başlangıç'},
+      {t:'info',   s:''},
+      {t:'info',   s:'  Java        ██████████░░  Orta'},
+      {t:'info',   s:'  JavaScript  ████████░░░░  Temel-Orta'},
+      {t:'info',   s:'  HTML/CSS    ██████████░░  Orta'},
+      {t:'info',   s:'  Python      ██████░░░░░░  Temel'},
+      {t:'info',   s:'  Siber Güv.  ████░░░░░░░░  Öğreniyor'},
+    ],
+    projects: [
+      {t:'cyan',   s:'> Projeler'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [1] HackDash — IP & Tarayıcı Bilgi Uygulaması'},
+      {t:'info',   s:'      JS · Frontend · IP Lookup'},
+      {t:'accent', s:'      → https://arhatb.github.io/HackDash/'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [2] LinkShortener — URL Kısaltıcı'},
+      {t:'info',   s:'      WebDev · API · Node.js'},
+      {t:'accent', s:'      → https://arhatb.github.io/LinkShortener/'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [3] Love — Özel Biri İçin'},
+      {t:'info',   s:'      Python · Automated · Bot'},
+      {t:'accent', s:'      → https://arhatb.github.io/love/'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [4] StudyPal — Pomodoro Zamanlayıcı'},
+      {t:'info',   s:'      JS · Frontend · Productivity'},
+      {t:'accent', s:'      → https://arhatb.github.io/StudyPal/'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [5] JSLogin — Güvenli Giriş Arayüzü'},
+      {t:'info',   s:'      JS · Frontend · Auth'},
+      {t:'accent', s:'      → https://arhatb.github.io/JsLogin/'},
+    ],
+    contact: [
+      {t:'cyan',   s:'> İletişim'},
+      {t:'dim',    s:''},
+      {t:'green2', s:'  GitHub    ', rest:'github.com/arhatb'},
+      {t:'green2', s:'  LinkedIn  ', rest:'linkedin.com/in/arhatbasut'},
+      {t:'green2', s:'  Instagram ', rest:'@arhatbasut'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  Yeni fırsatlara ve iş birliklerine açığım!'},
+    ],
+    experience: [
+      {t:'cyan',   s:'> Deneyim & Kulüpler'},
+      {t:'dim',    s:''},
+      {t:'yellow', s:'  2025 — Şu an'},
+      {t:'info',   s:'  Bilgisayar Mühendisliği · Harran Üniversitesi'},
+      {t:'dim',    s:''},
+      {t:'yellow', s:'  Mayıs 2026'},
+      {t:'info',   s:'  Genç STEM Kulübü · Sosyal Medya Temsilcisi'},
+      {t:'dim',    s:''},
+      {t:'yellow', s:'  2026 — Devam Ediyor'},
+      {t:'info',   s:'  TEKNOFEST · Deprem Projesi (Ekip)'},
+    ],
+    notfound: (cmd) => `  '${cmd}' komutu bulunamadı. 'help' yazarak komutları görebilirsin.`,
+    cleared:  '  Ekran temizlendi.',
+    lang_switched: '  Dil İngilizce\'ye geçirildi.',
+    secret: [
+      {t:'purple', s:'  ██████████████████████████████'},
+      {t:'purple', s:'  ██  GİZLİ ERİŞİM SAĞLANDI  ██'},
+      {t:'purple', s:'  ██████████████████████████████'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  Tebrikler, meraklı yazılımcı! 🎉'},
+      {t:'info',   s:'  Bu siteyi açık kaynak olarak GitHub\'da bulabilirsin.'},
+      {t:'accent', s:'  → github.com/arhatb'},
+    ],
+    hm_start:   '  Hangman başladı! Harfleri tek tek yaz ve Enter\'a bas.',
+    hm_guess:   (w, wrong, rem) => `  Kelime: ${w}    Yanlış: [${wrong}]    Kalan hak: ${rem}`,
+    hm_win:     (w) => `  ✅ Tebrikler! Kelime "${w}" idi!`,
+    hm_lose:    (w) => `  ❌ Kaybettin! Kelime "${w}" idi.`,
+    hm_already: (l) => `  '${l}' harfini zaten denedin.`,
+    hm_invalid: '  Lütfen tek bir harf gir.',
+    hm_none:    '  Aktif oyun yok. \'hangman\' yazarak başlat.',
+  },
+  en: {
+    welcome: [
+      {t:'accent', s:'╔══════════════════════════════════════════════╗'},
+      {t:'accent', s:'║         ARHAT BAŞUT — Terminal Portfolio     ║'},
+      {t:'accent', s:'╚══════════════════════════════════════════════╝'},
+      {t:'dim',    s:''},
+      {t:'info',   s:"  Hi! I'm Arhat — Aspiring Developer."},
+      {t:'info',   s:"  Harran University, Computer Engineering 1st year."},
+      {t:'dim',    s:''},
+      {t:'success',s:"  Type 'help' and press Enter to see commands."},
+      {t:'dim',    s:''},
+    ],
+    help: [
+      {t:'accent', s:'┌─ Available Commands ─────────────────────────┐'},
+      {t:'info',   s:'│'},
+      {t:'green2', s:'│  about       ', rest:'About me'},
+      {t:'green2', s:'│  skills      ', rest:'Technical skills'},
+      {t:'green2', s:'│  projects    ', rest:'My projects'},
+      {t:'green2', s:'│  contact     ', rest:'Contact info'},
+      {t:'green2', s:'│  experience  ', rest:'Experience & clubs'},
+      {t:'info',   s:'│'},
+      {t:'purple', s:'│  hangman     ', rest:'Mini word game 🎮'},
+      {t:'purple', s:'│  matrix      ', rest:'Matrix effect ✨'},
+      {t:'purple', s:'│  secret      ', rest:'???'},
+      {t:'info',   s:'│'},
+      {t:'warn',   s:'│  clear       ', rest:'Clear screen'},
+      {t:'warn',   s:'│  lang        ', rest:'Switch language (TR/EN)'},
+      {t:'info',   s:'│'},
+      {t:'accent', s:'└─────────────────────────────────────────────┘'},
+    ],
+    about: [
+      {t:'cyan',   s:'> About Me'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  Name     : Arhat Başut'},
+      {t:'info',   s:'  Location : Diyarbakır, Turkey 🇹🇷'},
+      {t:'info',   s:'  School   : Harran University'},
+      {t:'info',   s:'  Major    : Computer Engineering (1st Year)'},
+      {t:'info',   s:'  Status   : Actively learning ●'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  Passionate about software development & cybersecurity.'},
+      {t:'info',   s:'  Learning Java and web development. Active member of'},
+      {t:'info',   s:'  IEEE & Young STEM clubs.'},
+    ],
+    skills: [
+      {t:'cyan',   s:'> Technical Skills'},
+      {t:'dim',    s:''},
+      {t:'green2', s:'  Languages    ', rest:'Java · JavaScript · HTML · CSS · Python (basic)'},
+      {t:'green2', s:'  Web          ', rest:'Frontend · Basic Backend · REST API'},
+      {t:'green2', s:'  Tools        ', rest:'Git · GitHub · VS Code · Linux'},
+      {t:'yellow', s:'  Learning     ', rest:'Cybersecurity · Node.js · Algorithms'},
+      {t:'text3',  s:'  Interests    ', rest:'CTF · Network Security · Open Source'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  ● Strong   ◐ Growing   ○ Beginner'},
+      {t:'info',   s:''},
+      {t:'info',   s:'  Java        ██████████░░  Intermediate'},
+      {t:'info',   s:'  JavaScript  ████████░░░░  Basic-Int'},
+      {t:'info',   s:'  HTML/CSS    ██████████░░  Intermediate'},
+      {t:'info',   s:'  Python      ██████░░░░░░  Basic'},
+      {t:'info',   s:'  CyberSec    ████░░░░░░░░  Learning'},
+    ],
+    projects: [
+      {t:'cyan',   s:'> Projects'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [1] HackDash — IP & Browser Info App'},
+      {t:'info',   s:'      JS · Frontend · IP Lookup'},
+      {t:'accent', s:'      → https://arhatb.github.io/HackDash/'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [2] LinkShortener — URL Shortener'},
+      {t:'info',   s:'      WebDev · API · Node.js'},
+      {t:'accent', s:'      → https://arhatb.github.io/LinkShortener/'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [3] Love — For Someone Special'},
+      {t:'info',   s:'      Python · Automated · Bot'},
+      {t:'accent', s:'      → https://arhatb.github.io/love/'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [4] StudyPal — Pomodoro Timer'},
+      {t:'info',   s:'      JS · Frontend · Productivity'},
+      {t:'accent', s:'      → https://arhatb.github.io/StudyPal/'},
+      {t:'dim',    s:''},
+      {t:'purple', s:'  [5] JSLogin — Secure Login Interface'},
+      {t:'info',   s:'      JS · Frontend · Auth'},
+      {t:'accent', s:'      → https://arhatb.github.io/JsLogin/'},
+    ],
+    contact: [
+      {t:'cyan',   s:'> Contact'},
+      {t:'dim',    s:''},
+      {t:'green2', s:'  GitHub    ', rest:'github.com/arhatb'},
+      {t:'green2', s:'  LinkedIn  ', rest:'linkedin.com/in/arhatbasut'},
+      {t:'green2', s:'  Instagram ', rest:'@arhatbasut'},
+      {t:'dim',    s:''},
+      {t:'info',   s:"  I'm open to new opportunities & collaborations!"},
+    ],
+    experience: [
+      {t:'cyan',   s:'> Experience & Clubs'},
+      {t:'dim',    s:''},
+      {t:'yellow', s:'  2025 — Present'},
+      {t:'info',   s:'  Computer Engineering · Harran University'},
+      {t:'dim',    s:''},
+      {t:'yellow', s:'  May 2026'},
+      {t:'info',   s:'  Young STEM Club · Social Media Representative'},
+      {t:'dim',    s:''},
+      {t:'yellow', s:'  2026 — Ongoing'},
+      {t:'info',   s:'  TEKNOFEST · Earthquake Project (Team)'},
+    ],
+    notfound: (cmd) => `  '${cmd}' not found. Type 'help' to see available commands.`,
+    cleared:  '  Screen cleared.',
+    lang_switched: '  Language switched to Turkish.',
+    secret: [
+      {t:'purple', s:'  ██████████████████████████████'},
+      {t:'purple', s:'  ██   SECRET ACCESS GRANTED   ██'},
+      {t:'purple', s:'  ██████████████████████████████'},
+      {t:'dim',    s:''},
+      {t:'info',   s:'  Congrats, curious developer! 🎉'},
+      {t:'info',   s:"  You can find this site open-source on GitHub."},
+      {t:'accent', s:'  → github.com/arhatb'},
+    ],
+    hm_start:   "  Hangman started! Type a letter and press Enter.",
+    hm_guess:   (w, wrong, rem) => `  Word: ${w}    Wrong: [${wrong}]    Lives: ${rem}`,
+    hm_win:     (w) => `  ✅ You won! The word was "${w}"!`,
+    hm_lose:    (w) => `  ❌ You lost! The word was "${w}".`,
+    hm_already: (l) => `  You already tried '${l}'.`,
+    hm_invalid: '  Please enter a single letter.',
+    hm_none:    "  No active game. Type 'hangman' to start.",
   }
+};
 
-  cmdline.addEventListener('keydown', e => {
-    if(e.key === 'Enter'){
-      const input = cmdline.value.trim();
-      print(prompt + input);
-      if(input === '') {
-        cmdline.value = '';
-        return;
-      }
-      const args = input.split(' ');
-      const cmd = args[0].toLowerCase();
+// ─────────────────────────────────────────
+//  HANGMAN DATA
+// ─────────────────────────────────────────
+const HM_WORDS = {
+  tr: ['JAVASCRIPT','PYTHON','TERMINAL','GITHUB','SIBER','ALGORITMA','YAZILIM','TEKNOFEST','HARRAN'],
+  en: ['JAVASCRIPT','PYTHON','TERMINAL','GITHUB','ALGORITHM','SOFTWARE','SECURITY','DEVELOPER','NETWORK'],
+};
 
-      if(commands[cmd]) {
-        const result = commands[cmd](...args.slice(1));
-        if(result) print(result);
-      } else {
-        print(`Komut bulunamadı: ${cmd}. 'help' yazarak komutları görebilirsin.`);
-      }
+const HM_ART = [
+  `  +---+\n  |   |\n      |\n      |\n      |\n      |\n  =========`,
+  `  +---+\n  |   |\n  O   |\n      |\n      |\n      |\n  =========`,
+  `  +---+\n  |   |\n  O   |\n  |   |\n      |\n      |\n  =========`,
+  `  +---+\n  |   |\n  O   |\n /|   |\n      |\n      |\n  =========`,
+  `  +---+\n  |   |\n  O   |\n /|\\  |\n      |\n      |\n  =========`,
+  `  +---+\n  |   |\n  O   |\n /|\\  |\n /    |\n      |\n  =========`,
+  `  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n  =========`,
+];
 
-      cmdline.value = '';
+// ─────────────────────────────────────────
+//  DOM HELPERS
+// ─────────────────────────────────────────
+const term = document.getElementById('terminal');
+const inp  = document.getElementById('input');
+
+function print(text, type='info') {
+  const d = document.createElement('div');
+  d.className = 'output-line ' + type;
+  d.textContent = text;
+  term.appendChild(d);
+  term.scrollTop = term.scrollHeight;
+}
+
+function printLines(lines) {
+  lines.forEach(l => {
+    if (l.rest !== undefined) {
+      // two-tone line
+      const d = document.createElement('div');
+      d.className = 'output-line';
+      const s1 = document.createElement('span');
+      s1.className = l.t === 'green2' ? 'success' : l.t;
+      s1.style.color = l.t === 'green2' ? 'var(--green)' : '';
+      s1.textContent = l.s;
+      const s2 = document.createElement('span');
+      s2.className = 'info';
+      s2.textContent = l.rest;
+      d.appendChild(s1);
+      d.appendChild(s2);
+      term.appendChild(d);
+    } else {
+      const cls = l.t === 'green2' ? 'success' : l.t === 'text3' ? 'dim' : l.t;
+      print(l.s, cls);
     }
   });
+  term.scrollTop = term.scrollHeight;
+}
 
-  // Terminale odaklama, tıklayınca input aktif olsun
-  terminal.addEventListener('click', () => cmdline.focus());
+function printCmd(cmd) {
+  const row = document.createElement('div');
+  row.className = 'prompt-line output-line';
+  row.style.marginTop = '10px';
+  row.innerHTML = `<span class="prompt-user">arhat</span><span class="prompt-at">@</span><span class="prompt-host">portfolio</span><span class="prompt-sep">:</span><span class="prompt-path">~</span><span class="prompt-arrow"> $ </span><span style="color:var(--text)">${cmd}</span>`;
+  term.appendChild(row);
+  term.scrollTop = term.scrollHeight;
+}
 
-  // Sayfa yüklendiğinde inputa otomatik odak ve karşılama mesajı
-  window.onload = () => {
-    print("HackTerm terminaline hoş geldin!");
-    print("Yardım için 'help' yazabilirsin.\n");
-    cmdline.focus();
-  };
+function gap() { print(''); }
 
-})();
+// ─────────────────────────────────────────
+//  MATRIX EFFECT
+// ─────────────────────────────────────────
+function doMatrix() {
+  const chars = 'アイウエオカキクケコ0123456789ABCDEF';
+  let count = 0;
+  const id = setInterval(() => {
+    let line = '  ';
+    for (let i = 0; i < 40; i++) line += chars[Math.floor(Math.random() * chars.length)];
+    const d = document.createElement('div');
+    d.className = 'output-line';
+    d.style.color = `hsl(${120 + Math.random()*20}, 100%, ${30 + Math.random()*40}%)`;
+    d.textContent = line;
+    term.appendChild(d);
+    term.scrollTop = term.scrollHeight;
+    count++;
+    if (count > 18) {
+      clearInterval(id);
+      gap();
+      print(lang === 'tr' ? "  Matrix bitti. Hoş geldin, Neo." : "  Matrix ended. Welcome, Neo.", 'success');
+      gap();
+    }
+  }, 60);
+}
+
+// ─────────────────────────────────────────
+//  HANGMAN
+// ─────────────────────────────────────────
+function startHangman() {
+  const words = HM_WORDS[lang];
+  const word = words[Math.floor(Math.random() * words.length)];
+  hangman = { word, guessed: [], wrong: [], maxWrong: 6 };
+  gap();
+  print(T[lang].hm_start, 'purple');
+  gap();
+  renderHangman();
+}
+
+function renderHangman() {
+  if (!hangman) return;
+  const { word, guessed, wrong, maxWrong } = hangman;
+  // art
+  const artLines = HM_ART[wrong.length].split('\n');
+  artLines.forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'hangman-art output-line';
+    d.textContent = l;
+    term.appendChild(d);
+  });
+  // word display
+  const display = word.split('').map(c => guessed.includes(c) ? c : '_').join(' ');
+  const wd = document.createElement('div');
+  wd.className = 'hm-word output-line';
+  wd.textContent = '  ' + display;
+  term.appendChild(wd);
+  // wrong letters
+  const wl = document.createElement('div');
+  wl.className = 'hm-wrong output-line';
+  wl.textContent = T[lang].hm_guess(display, wrong.join(' ') || '-', maxWrong - wrong.length);
+  term.appendChild(wl);
+  term.scrollTop = term.scrollHeight;
+}
+
+function guessLetter(letter) {
+  if (!hangman) { print(T[lang].hm_none, 'error'); return; }
+  letter = letter.toUpperCase();
+  if (letter.length !== 1 || !/[A-ZÇĞİÖŞÜ]/.test(letter)) {
+    print(T[lang].hm_invalid, 'error'); return;
+  }
+  if (hangman.guessed.includes(letter) || hangman.wrong.includes(letter)) {
+    print(T[lang].hm_already(letter), 'warn'); return;
+  }
+  if (hangman.word.includes(letter)) {
+    hangman.guessed.push(letter);
+  } else {
+    hangman.wrong.push(letter);
+  }
+  gap();
+  const { word, guessed, wrong, maxWrong } = hangman;
+  const won  = word.split('').every(c => guessed.includes(c));
+  const lost = wrong.length >= maxWrong;
+  if (won) {
+    renderHangman();
+    gap();
+    print(T[lang].hm_win(word), 'success');
+    hangman = null;
+  } else if (lost) {
+    renderHangman();
+    gap();
+    print(T[lang].hm_lose(word), 'error');
+    hangman = null;
+  } else {
+    renderHangman();
+  }
+  gap();
+}
+
+// ─────────────────────────────────────────
+//  COMMAND PROCESSOR
+// ─────────────────────────────────────────
+function run(raw) {
+  const cmd = raw.trim().toLowerCase();
+  if (!cmd) return;
+
+  printCmd(raw.trim());
+
+  // hangman letter guess mode
+  if (hangman && cmd.length === 1) {
+    guessLetter(cmd);
+    return;
+  }
+
+  gap();
+  switch(cmd) {
+    case 'help':
+      printLines(T[lang].help); break;
+    case 'about':
+      printLines(T[lang].about); break;
+    case 'skills':
+      printLines(T[lang].skills); break;
+    case 'projects':
+      printLines(T[lang].projects); break;
+    case 'contact':
+      printLines(T[lang].contact); break;
+    case 'experience':
+    case 'exp':
+      printLines(T[lang].experience); break;
+    case 'clear':
+      term.innerHTML = '';
+      print(T[lang].cleared, 'dim');
+      break;
+    case 'lang':
+      lang = lang === 'tr' ? 'en' : 'tr';
+      document.getElementById('langToggle').textContent = lang === 'tr' ? 'EN' : 'TR';
+      print(T[lang].lang_switched, 'success');
+      break;
+    case 'hangman':
+      startHangman(); break;
+    case 'matrix':
+      doMatrix(); break;
+    case 'secret':
+    case 'sudo':
+    case 'hack':
+      printLines(T[lang].secret); break;
+    case 'whoami':
+      print('  arhat', 'green'); break;
+    case 'pwd':
+      print('  /home/arhat/portfolio', 'info'); break;
+    case 'ls':
+      print('  about.txt  skills.json  projects/  contact.md  secret.exe', 'info'); break;
+    case 'uname':
+    case 'uname -a':
+      print('  ARHAT-OS 2026.1 portfolio-kernel #1 SMP Thu May 2026', 'info'); break;
+    case 'date':
+      print('  ' + new Date().toLocaleString(lang === 'tr' ? 'tr-TR' : 'en-US'), 'info'); break;
+    case 'hello':
+    case 'hi':
+    case 'merhaba':
+      print(lang === 'tr' ? '  Merhaba! 👋  help yazarak başlayabilirsin.' : "  Hello! 👋  Type 'help' to get started.", 'success'); break;
+    case 'exit':
+    case 'quit':
+      print(lang === 'tr' ? '  Bu kadar kolay çıkamazsın. 😄' : "  You can't leave that easily. 😄", 'warn'); break;
+    default:
+      print(T[lang].notfound(raw.trim()), 'error');
+  }
+  gap();
+}
+
+// ─────────────────────────────────────────
+//  LANG TOGGLE (titlebar button)
+// ─────────────────────────────────────────
+function toggleLang() {
+  run('lang');
+}
+
+// ─────────────────────────────────────────
+//  INPUT HANDLING
+// ─────────────────────────────────────────
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const val = inp.value;
+    inp.value = '';
+    if (val.trim()) { history.unshift(val); histIdx = -1; }
+    run(val);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (histIdx < history.length - 1) { histIdx++; inp.value = history[histIdx]; }
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (histIdx > 0) { histIdx--; inp.value = history[histIdx]; }
+    else { histIdx = -1; inp.value = ''; }
+  } else if (e.key === 'Tab') {
+    e.preventDefault();
+    const cmds = ['help','about','skills','projects','contact','experience','hangman','matrix','secret','clear','lang'];
+    const partial = inp.value.toLowerCase();
+    const match = cmds.find(c => c.startsWith(partial));
+    if (match) inp.value = match;
+  }
+});
+
+// click anywhere to focus
+document.addEventListener('click', () => inp.focus());
+
+// ─────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────
+function boot() {
+  // animated boot sequence
+  const bootLines = [
+    {t:'dim', s:'  Initializing ARHAT-OS...'},
+    {t:'dim', s:'  Loading portfolio modules... ✓'},
+    {t:'dim', s:'  Mounting /home/arhat... ✓'},
+    {t:'dim', s:''},
+  ];
+  let i = 0;
+  const bootInterval = setInterval(() => {
+    if (i < bootLines.length) {
+      print(bootLines[i].s, bootLines[i].t);
+      i++;
+    } else {
+      clearInterval(bootInterval);
+      printLines(T[lang].welcome);
+    }
+  }, 120);
+}
+
+boot();
+inp.focus();
 </script>
-
 </body>
 </html>
